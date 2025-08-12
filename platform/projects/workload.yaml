@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: workload
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: Project to contain all SockShop microservices
+  sourceRepos:
+    - https://github.com/rocklobster1618/cicd-sockshop/workload/*
+  destinations:
+    - namespace: sockshop
+      server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

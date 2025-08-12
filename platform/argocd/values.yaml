@@ -1,0 +1,69 @@
+global:
+  image:
+    tag: ""  # use chart default; pin if you need reproducibility
+
+configs:
+  cm:
+    timeout.reconciliation: "30s"
+    # If you’ll show Git commit in the UI, etc., add here.
+  rbac:
+    policy.csv: |
+      p, role:read-only, applications, get, */*, allow
+      g, system:authenticated, role:read-only
+    scopes: "[groups]"    # if using OIDC groups later
+  secret:                  # DO NOT put live secrets here for portfolio
+    # leave empty; deliver repo/cluster creds via External Secrets or AVP
+
+# Example: enable Argo CD Vault Plugin (with Azure Key Vault) for demo
+repoServer:
+  volumes:
+    - name: avp-config
+      configMap:
+        name: avp-config
+    - name: avp-credentials
+      secret:
+        secretName: avp-azure-kv-creds    # create via ExternalSecret/SealedSecret
+  volumeMounts:
+    - name: avp-config
+      mountPath: /avp/config
+    - name: avp-credentials
+      mountPath: /avp/creds
+  env:
+    - name: AVP_TYPE
+      value: azurekeyvault
+    - name: AVP_AUTH_TYPE
+      value: workload_identity # or env vars from /avp/creds for demos
+    - name: AVP_AZURE_TENANT_ID
+      valueFrom:
+        secretKeyRef: { name: avp-azure-kv-creds, key: TENANT_ID }
+
+  # Register AVP as a config management plugin (CMP)
+  extraArgs:
+    - --plugin-name
+    - avp-kustomize
+  config:
+    cm:
+      configManagementPlugins: |
+        - name: avp-kustomize
+          generate:
+            command: [ "sh", "-c" ]
+            args:
+              - >
+                kustomize build . | argocd-vault-plugin generate -
+server:
+  # For a demo cluster behind port-forward. Use TLS/ingress in real use.
+  extraArgs:
+    - --insecure
+
+# Optional quality-of-life:
+dex:
+  enabled: false   # simplify portfolio unless you want SSO demo
+
+controller:
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+  # add parallelism, sharding, etc., if showcasing scale
+
+redis:
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
